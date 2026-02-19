@@ -155,7 +155,6 @@ export function Leaderboard({ onBack, currentUserData, currentUsername }: Leader
                   </td>
                 </motion.tr>
               ))}
-              }
             </tbody>
           </table>
         </div>
