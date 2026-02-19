@@ -4,6 +4,8 @@ import { useLocalStorage } from '@/app/hooks/useLocalStorage';
 import { MainMenu } from '@/app/components/MainMenu';
 import { GameSelectionMenu } from '@/app/components/GameSelectionMenu';
 import { InteractiveBackground } from '@/app/components/InteractiveBackground';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
 import { CursorAura } from '@/app/components/CursorAura';
 import { UserProfile } from '@/app/components/UserProfile';
 import { Leaderboard } from '@/app/components/Leaderboard';
@@ -53,6 +55,18 @@ export default function App() {
 
   const [userData, setUserData] = useState(defaultUserData);
 
+  const syncUserData = async (username: string, data: any) => {
+    try {
+      await fetch(`${API_URL}/api/users/${username}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.error('Failed to sync data with server:', err);
+    }
+  };
+
   // Sync userData when currentUser changes
   useEffect(() => {
     if (currentUser) {
@@ -70,16 +84,8 @@ export default function App() {
   const updateUserData = (updater: any) => {
     setUserData(prev => {
       const newData = typeof updater === 'function' ? updater(prev) : updater;
-
       if (currentUser) {
-        const usersJson = localStorage.getItem('arcade_users');
-        if (usersJson) {
-          const users = JSON.parse(usersJson);
-          if (users[currentUser]) {
-            users[currentUser].data = newData;
-            localStorage.setItem('arcade_users', JSON.stringify(users));
-          }
-        }
+        syncUserData(currentUser, newData);
       }
       return newData;
     });

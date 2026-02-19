@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PixelButton } from './PixelButton';
 import { User, Lock, UserPlus, LogIn, AlertCircle } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 interface AuthProps {
     onLogin: (userData: any, username: string) => void;
 }
@@ -13,8 +15,9 @@ export function Auth({ onLogin }: AuthProps) {
     const [password, setPassword] = useState('');
     const [nickname, setNickname] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
@@ -23,45 +26,30 @@ export function Auth({ onLogin }: AuthProps) {
             return;
         }
 
-        const usersJson = localStorage.getItem('arcade_users');
-        const users = usersJson ? JSON.parse(usersJson) : {};
+        setLoading(true);
+        try {
+            const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+            const body: any = { username, password };
+            if (!isLogin && nickname) body.nickname = nickname;
 
-        if (isLogin) {
-            const user = users[username];
-            if (user && user.password === password) {
-                onLogin(user.data, username);
-            } else {
-                setError('Неверное имя или пароль');
-            }
-        } else {
-            if (users[username]) {
-                setError('Пользователь уже существует');
+            const res = await fetch(`${API_URL}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok) {
+                setError(json.error || 'Ошибка сервера');
                 return;
             }
 
-            const initialUserData = {
-                avatar: '🎮',
-                nickname: nickname || username,
-                level: 1,
-                rank: 'НОВИЧОК',
-                xp: 0,
-                nextLevelXp: 1000,
-                totalScore: 0,
-                gamesPlayed: 0,
-                totalWins: 0,
-                playTime: '0ч 0м',
-            };
-
-            const newUsers = {
-                ...users,
-                [username]: {
-                    password,
-                    data: initialUserData,
-                }
-            };
-
-            localStorage.setItem('arcade_users', JSON.stringify(newUsers));
-            onLogin(initialUserData, username);
+            onLogin(json.data, json.username);
+        } catch (err) {
+            setError('Не удалось подключиться к серверу');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -149,8 +137,11 @@ export function Auth({ onLogin }: AuthProps) {
                             type="submit"
                             variant="primary"
                             className="w-full py-4 text-lg flex items-center justify-center gap-2"
+                            disabled={loading}
                         >
-                            {isLogin ? (
+                            {loading ? (
+                                <span className="animate-pulse">ЗАГРУЗКА...</span>
+                            ) : isLogin ? (
                                 <><LogIn size={20} /> ВОЙТИ</>
                             ) : (
                                 <><UserPlus size={20} /> СОЗДАТЬ</>

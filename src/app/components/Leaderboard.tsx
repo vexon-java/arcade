@@ -1,8 +1,8 @@
 import { motion } from 'motion/react';
-import { Trophy, Medal, Award, Crown, ArrowLeft, Filter, SortAsc } from 'lucide-react';
-import { useState } from 'react';
+import { Trophy, Medal, Award, Crown, ArrowLeft, SortAsc } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { PixelButton } from '@/app/components/PixelButton';
-import { getRegisteredPlayers, getSortedPlayers, TimeFilter, SortBy } from '@/app/data/leaderboardData';
+import { getLeaderboardPlayers, getSortedPlayers, TimeFilter, SortBy, Player } from '@/app/data/leaderboardData';
 
 interface LeaderboardProps {
   onBack: () => void;
@@ -13,11 +13,18 @@ interface LeaderboardProps {
 export function Leaderboard({ onBack, currentUserData, currentUsername }: LeaderboardProps) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('score');
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const registeredPlayers = getRegisteredPlayers();
+  useEffect(() => {
+    getLeaderboardPlayers(sortBy).then(data => {
+      setPlayers(data);
+      setLoading(false);
+    });
+  }, [sortBy]);
 
   const sortedPlayers = getSortedPlayers(
-    registeredPlayers.map(p => ({
+    players.map(p => ({
       ...p,
       isCurrentUser: p.id === currentUsername
     })),
@@ -101,7 +108,11 @@ export function Leaderboard({ onBack, currentUserData, currentUsername }: Leader
               </tr>
             </thead>
             <tbody>
-              {sortedPlayers.map((player) => (
+              {loading ? (
+                <tr><td colSpan={4} className="p-8 text-center text-[var(--primary)]/50 font-mono animate-pulse">ЗАГРУЗКА...</td></tr>
+              ) : sortedPlayers.length === 0 ? (
+                <tr><td colSpan={4} className="p-8 text-center text-[var(--primary)]/50 font-mono">НЕТ ДАННЫХ</td></tr>
+              ) : sortedPlayers.map((player) => (
                 <motion.tr
                   layout
                   key={player.id}
@@ -144,6 +155,7 @@ export function Leaderboard({ onBack, currentUserData, currentUsername }: Leader
                   </td>
                 </motion.tr>
               ))}
+              }
             </tbody>
           </table>
         </div>

@@ -1,3 +1,5 @@
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 export interface Player {
     id: string;
     rank: number;
@@ -12,26 +14,13 @@ export interface Player {
 export type TimeFilter = 'day' | 'week' | 'month' | 'all';
 export type SortBy = 'score' | 'level' | 'wins';
 
-export const getRegisteredPlayers = (): Player[] => {
-    if (typeof window === 'undefined') return [];
-
-    const usersJson = localStorage.getItem('arcade_users');
-    if (!usersJson) return [];
-
+export const getLeaderboardPlayers = async (sortBy: SortBy = 'score'): Promise<Player[]> => {
     try {
-        const users = JSON.parse(usersJson);
-        return Object.entries(users).map(([username, user]: [string, any], index) => ({
-            id: username,
-            rank: index + 1,
-            avatar: user.data.avatar,
-            nickname: user.data.nickname,
-            score: user.data.totalScore,
-            level: user.data.level,
-            gamesWon: user.data.totalWins,
-            isCurrentUser: false // This will be set by the component
-        }));
-    } catch (e) {
-        console.error('Error parsing arcade_users:', e);
+        const res = await fetch(`${API_URL}/api/leaderboard?sort=${sortBy}`);
+        if (!res.ok) throw new Error('Failed to fetch leaderboard');
+        return await res.json();
+    } catch (err) {
+        console.error('Leaderboard fetch error:', err);
         return [];
     }
 };
@@ -39,8 +28,6 @@ export const getRegisteredPlayers = (): Player[] => {
 export const getSortedPlayers = (players: Player[], timeFilter: TimeFilter, sortBy: SortBy) => {
     let filtered = [...players];
 
-    // Note: Since we don't have historical score data per user yet, 
-    // time filtering is mock-logic applied to current totals.
     if (timeFilter === 'day') {
         filtered = filtered.map(p => ({ ...p, score: Math.floor(p.score * 0.1), gamesWon: Math.floor(p.gamesWon * 0.1) }));
     } else if (timeFilter === 'week') {

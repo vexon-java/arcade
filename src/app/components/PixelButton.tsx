@@ -10,6 +10,7 @@ interface PixelButtonProps {
   variant?: 'primary' | 'secondary' | 'danger';
   className?: string;
   type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
 }
 
 export function PixelButton({
@@ -19,7 +20,8 @@ export function PixelButton({
   size = 'normal',
   variant = 'primary',
   className = '',
-  type = 'button'
+  type = 'button',
+  disabled = false
 }: PixelButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -43,17 +45,18 @@ export function PixelButton({
       {isHovered && <PixelAura />}
 
       <motion.button
-        onClick={onClick}
+        onClick={!disabled ? onClick : undefined}
         type={type}
-        className={`relative z-10 ${sizeClass} bg-black border-4 rounded-xl transition-all duration-300 flex items-center justify-center ${variantStyles[variant]} ${className}`}
+        disabled={disabled}
+        className={`relative z-10 ${sizeClass} bg-black border-4 rounded-xl transition-all duration-300 flex items-center justify-center ${variantStyles[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
         style={{
           fontFamily: "'Press Start 2P', cursive",
         }}
-        whileHover={{
+        whileHover={!disabled ? {
           scale: 1.05,
           boxShadow: variant === 'primary' ? '0 0 40px #00ff00, inset 0 0 30px rgba(0, 255, 0, 0.3)' : undefined
-        }}
-        whileTap={{ scale: 0.95 }}
+        } : {}}
+        whileTap={!disabled ? { scale: 0.95 } : {}}
       >
         <span className="text-center px-4 leading-tight">{children}</span>
       </motion.button>
