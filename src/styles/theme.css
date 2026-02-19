@@ -1,0 +1,319 @@
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+:root {
+  --font-size: 16px;
+  --background: #05050a;
+  --foreground: #00ff00;
+  --card: rgba(0, 255, 0, 0.05);
+  --card-foreground: #00ff00;
+  --popover: #05050a;
+  --popover-foreground: #00ff00;
+  --primary: var(--neon-lime);
+  --primary-foreground: #000000;
+  --secondary: rgba(0, 255, 0, 0.1);
+  --secondary-foreground: #00ff00;
+  --muted: rgba(0, 255, 0, 0.1);
+  --muted-foreground: rgba(0, 255, 0, 0.6);
+  --accent: rgba(0, 255, 0, 0.1);
+  --accent-foreground: #00ff00;
+  --destructive: #ff3131;
+  --destructive-foreground: #000000;
+  --border: rgba(0, 255, 0, 0.2);
+  --input: rgba(0, 255, 0, 0.2);
+  --ring: rgba(0, 255, 0, 0.5);
+  --radius: 0.5rem;
+
+  /* Premium Neon Palette */
+  --neon-cyan: #00f3ff;
+  --neon-magenta: #ff00ff;
+  --neon-lime: #00ff00;
+  --neon-amber: #ffaa00;
+  --neon-red: #ff3131;
+}
+
+/* Theme Overrides */
+.theme-green {
+  --foreground: #00ff00;
+  --primary: var(--neon-lime);
+  --primary-rgb: 0, 255, 0;
+  --accent: var(--neon-cyan);
+  --accent-rgb: 0, 243, 255;
+  --secondary: rgba(0, 255, 0, 0.1);
+  --border: rgba(0, 255, 0, 0.2);
+  --ring: rgba(0, 255, 0, 0.5);
+}
+
+.theme-cyan {
+  --foreground: #00f3ff;
+  --primary: var(--neon-cyan);
+  --primary-rgb: 0, 243, 255;
+  --accent: var(--neon-magenta);
+  --accent-rgb: 255, 0, 255;
+  --secondary: rgba(0, 243, 255, 0.1);
+  --border: rgba(0, 243, 255, 0.2);
+  --ring: rgba(0, 243, 255, 0.5);
+}
+
+.theme-red {
+  --foreground: #ff3131;
+  --primary: var(--neon-red);
+  --primary-rgb: 255, 49, 49;
+  --accent: var(--neon-amber);
+  --accent-rgb: 255, 170, 0;
+  --secondary: rgba(255, 49, 49, 0.1);
+  --border: rgba(255, 49, 49, 0.2);
+  --ring: rgba(255, 49, 49, 0.5);
+}
+
+@layer utilities {
+  .arcade-glow {
+    box-shadow: 0 0 10px var(--neon-lime), inset 0 0 10px rgba(0, 255, 0, 0.2);
+  }
+
+  .arcade-glow-cyan {
+    box-shadow: 0 0 15px var(--neon-cyan), inset 0 0 10px rgba(0, 243, 255, 0.2);
+  }
+
+  .arcade-glow-magenta {
+    box-shadow: 0 0 15px var(--neon-magenta), inset 0 0 10px rgba(255, 0, 255, 0.2);
+  }
+
+  .arcade-text-glitch {
+    text-shadow: 2px 0 var(--neon-cyan), -2px 0 var(--neon-magenta);
+  }
+
+  .crt-screen::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.06));
+    z-index: 1000;
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+  }
+
+  .crt-screen::after {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: rgba(18, 16, 16, 0.1);
+    opacity: 0;
+    z-index: 1000;
+    pointer-events: none;
+    animation: flicker 0.15s infinite;
+  }
+
+  @keyframes flicker {
+    0% {
+      opacity: 0.27861;
+    }
+
+    5% {
+      opacity: 0.34769;
+    }
+
+    10% {
+      opacity: 0.23604;
+    }
+
+    15% {
+      opacity: 0.90626;
+    }
+
+    20% {
+      opacity: 0.18128;
+    }
+
+    25% {
+      opacity: 0.83891;
+    }
+
+    30% {
+      opacity: 0.65583;
+    }
+
+    35% {
+      opacity: 0.57807;
+    }
+
+    40% {
+      opacity: 0.26559;
+    }
+
+    45% {
+      opacity: 0.84693;
+    }
+
+    50% {
+      opacity: 0.96019;
+    }
+
+    55% {
+      opacity: 0.08523;
+    }
+
+    60% {
+      opacity: 0.71056;
+    }
+
+    65% {
+      opacity: 0.73437;
+    }
+
+    70% {
+      opacity: 0.28557;
+    }
+
+    75% {
+      opacity: 0.96303;
+    }
+
+    80% {
+      opacity: 0.2268;
+    }
+
+    85% {
+      opacity: 0.20448;
+    }
+
+    90% {
+      opacity: 0.46973;
+    }
+
+    95% {
+      opacity: 0.39835;
+    }
+
+    100% {
+      opacity: 0.29881;
+    }
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 255, 0, 0.02);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--neon-lime);
+    box-shadow: 0 0 10px var(--neon-lime);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    cursor: none;
+    /* Hide default cursor globally */
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    cursor: none;
+    /* Ensure cursor is hidden */
+  }
+
+  /* Pixelated rendering for retro effect */
+  canvas,
+  img.pixelated {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
