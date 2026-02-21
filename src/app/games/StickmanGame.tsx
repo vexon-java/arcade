@@ -32,7 +32,18 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
     const [gameOver, setGameOver] = useState(false);
     const [winner, setWinner] = useState<string | null>(null);
     const [isPaused, setIsPaused] = useState(false);
-    const [isReady, setIsReady] = useState(false); // New intro state
+    const [isReady, setIsReady] = useState(false);
+
+    // Refs for game flags to avoid stale closures in gameLoop
+    const gameOverRef = useRef(false);
+    const isPausedRef = useRef(false);
+    const isReadyRef = useRef(false);
+
+    // Sync refs with state
+    useEffect(() => { gameOverRef.current = gameOver; }, [gameOver]);
+    useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+    useEffect(() => { isReadyRef.current = isReady; }, [isReady]);
+
     const requestRef = useRef<number>(0);
     const [devicePixelRatio, setDevicePixelRatio] = useState(1);
 
@@ -46,7 +57,7 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
             y: GROUND_Y,
             vx: 0,
             vy: 0,
-            hp: 120, // Slightly more HP
+            hp: 120,
             maxHp: 120,
             direction: 'right' as const,
             state: 'idle' as const,
@@ -88,12 +99,13 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         requestRef.current = requestAnimationFrame(gameLoop);
 
         // Start intro sequence
-        setTimeout(() => setIsReady(true), 1500);
+        const introTimer = setTimeout(() => setIsReady(true), 1500);
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
+            clearTimeout(introTimer);
         };
     }, []);
 
@@ -148,19 +160,21 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
             f.state = 'idle';
         }
 
-        if (isPaused || gameOver) return;
+        // isPaused/gameOver checks are now handled in gameLoop via refs
 
         if (!f.isPlayer) {
             const dist = Math.abs(f.x - target.x);
             const directionToPlayer = target.x > f.x ? 1 : -1;
             f.direction = directionToPlayer > 0 ? 'right' : 'left';
 
-            if (dist > ATTACK_RANGE_X - 20) {
-                f.vx = directionToPlayer * (MOVEMENT_SPEED * 0.8);
+            if (dist > ATTACK_RANGE_X - 10) {
+                f.vx = directionToPlayer * (MOVEMENT_SPEED * (0.8 + Math.random() * 0.4));
                 if (f.state !== 'attack' && f.state !== 'jump' && f.state !== 'hit') f.state = 'run';
             } else {
                 f.vx = 0;
-                if (Date.now() - f.lastAttackTime > ATTACK_COOLDOWN + 200) {
+                // Randomize attack timing slightly for more natural feel
+                const cooldown = ATTACK_COOLDOWN + (Math.random() * 300);
+                if (Date.now() - f.lastAttackTime > cooldown && f.state !== 'hit') {
                     attack(f, target);
                 }
             }
@@ -264,7 +278,8 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
             setScreenShake(prev => Math.max(0, prev - 1));
         }
 
-        if (!isPaused && !gameOver && isReady) {
+        // Use refs for logic to avoid stale state issues in the requestAnimationFrame closure
+        if (!isPausedRef.current && !gameOverRef.current && isReadyRef.current) {
             const { player, enemy } = gameState.current;
             updateFighter(player, enemy);
             updateFighter(enemy, player);
@@ -511,8 +526,8 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
                     </div>
                 )}
 
-                <div className="absolute bottom-4 left-0 right-0 text-center text-white/20 font-mono text-[8px] pointer-events-none tracking-widest">
-                    [WASD/ARROWS] MOVE • [SPACE] ATTACK • [ESC] PAUSE
+                <div className="absolute bottom-4 left-0 right-0 text-center text-white/30 font-mono text-[10px] pointer-events-none tracking-widest uppercase">
+                    [WASD / ARROWS] MOVE • [SPACE] ATTACK • [ESC] PAUSE
                 </div>
             </div>
         </GameWrapper>
