@@ -32,6 +32,7 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
     const [gameOver, setGameOver] = useState(false);
     const [winner, setWinner] = useState<string | null>(null);
     const [isPaused, setIsPaused] = useState(false);
+    const [isReady, setIsReady] = useState(false); // New intro state
     const requestRef = useRef<number>(0);
     const [devicePixelRatio, setDevicePixelRatio] = useState(1);
 
@@ -41,29 +42,29 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
 
     const getInitialState = () => ({
         player: {
-            x: 150,
+            x: 100,
             y: GROUND_Y,
             vx: 0,
             vy: 0,
-            hp: 100,
-            maxHp: 100,
+            hp: 120, // Slightly more HP
+            maxHp: 120,
             direction: 'right' as const,
             state: 'idle' as const,
-            color: 'var(--primary)', // Blue
+            color: '#00ccff', // Bright Blue
             isPlayer: true,
             lastAttackTime: 0,
             hitStop: 0
         },
         enemy: {
-            x: 650,
+            x: 700,
             y: GROUND_Y,
             vx: 0,
             vy: 0,
-            hp: 100,
-            maxHp: 100,
+            hp: 120,
+            maxHp: 120,
             direction: 'left' as const,
             state: 'idle' as const,
-            color: 'var(--accent)', // Red
+            color: '#ff3300', // Bright Red
             isPlayer: false,
             lastAttackTime: 0,
             hitStop: 0
@@ -71,7 +72,7 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
     });
 
     const gameState = useRef(getInitialState());
-    const particles = useRef<{ x: number, y: number, vx: number, vy: number, life: number, color: string }[]>([]);
+    const particles = useRef<{ x: number, y: number, vx: number, vy: number, life: number, color: string, alpha?: number }[]>([]);
     const keys = useRef<{ [key: string]: boolean }>({});
 
     useEffect(() => {
@@ -85,6 +86,9 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
         requestRef.current = requestAnimationFrame(gameLoop);
+
+        // Start intro sequence
+        setTimeout(() => setIsReady(true), 1500);
 
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
@@ -101,6 +105,8 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         setIsPaused(false);
         setScreenShake(0);
         setFlash(false);
+        setIsReady(false);
+        setTimeout(() => setIsReady(true), 1500);
     };
 
     const spawnParticles = (x: number, y: number, color: string, count = 20) => {
@@ -202,31 +208,43 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         victim.hp -= DAMAGE;
         victim.state = 'hit';
         victim.lastAttackTime = Date.now();
-        victim.vx = attacker.direction === 'right' ? 15 : -15;
-        victim.vy = -5;
+        victim.vx = attacker.direction === 'right' ? 18 : -18; // More knockback
+        victim.vy = -6;
 
-        victim.hitStop = 5;
-        attacker.hitStop = 5;
+        victim.hitStop = 8; // More impact freeze
+        attacker.hitStop = 8;
 
-        spawnParticles(victim.x, victim.y - 40, victim.color);
+        // Spawn hit sparks
+        spawnSparks(victim.x, victim.y - 40, '#ffffff', 10);
+        spawnParticles(victim.x, victim.y - 40, victim.color, 15);
 
         if (victim.hp <= 0) {
             victim.hp = 0;
             victim.state = 'dead';
-
-            // Critical Hit / Death Effect
-            setScreenShake(20);
+            setScreenShake(25);
             setFlash(true);
-            setTimeout(() => setFlash(false), 100);
-
-            // Slow motion finish or delay game over slightly for impact
+            setTimeout(() => setFlash(false), 150);
             setTimeout(() => {
                 setGameOver(true);
                 setWinner(attacker.isPlayer ? 'CYBER_UNIT' : 'CPU_OVERLORD');
-            }, 500);
+            }, 800);
         } else {
-            // Apply small screen shake on hit
-            setScreenShake(5);
+            setScreenShake(8);
+        }
+    };
+
+    const spawnSparks = (x: number, y: number, color: string, count: number) => {
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 10 + Math.random() * 15;
+            particles.current.push({
+                x, y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1.0,
+                color,
+                alpha: 1.0
+            });
         }
     };
 
@@ -246,16 +264,30 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
             setScreenShake(prev => Math.max(0, prev - 1));
         }
 
-        if (!isPaused && !gameOver) {
+        if (!isPaused && !gameOver && isReady) {
             const { player, enemy } = gameState.current;
             updateFighter(player, enemy);
             updateFighter(enemy, player);
-            particles.current.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
+            particles.current.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2; // Gravity for particles
+                p.life -= 0.02;
+            });
             particles.current = particles.current.filter(p => p.life > 0);
         }
 
-        ctx.fillStyle = '#050510';
+        // Draw Arena - Lighter and more vibrant
+        ctx.fillStyle = '#0a0a20';
         ctx.fillRect(0, 0, 800, 450);
+
+        // Lighter Grid
+        ctx.strokeStyle = '#151540';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < 800; i += 40) { ctx.moveTo(i, 0); ctx.lineTo(i, 450); }
+        for (let j = 0; j < 450; j += 40) { ctx.moveTo(0, j); ctx.lineTo(800, j); }
+        ctx.stroke();
 
         // Apply camera shake if needed
         ctx.save();
@@ -265,27 +297,23 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
             ctx.translate(dx, dy);
         }
 
-        ctx.strokeStyle = 'var(--primary)';
+        // Floor with stronger glow
+        const floorY = GROUND_Y + 10;
+        ctx.strokeStyle = '#3333aa';
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        for (let i = 0; i < 800; i += 50) { ctx.moveTo(i, 0); ctx.lineTo(i, 450); }
-        for (let j = 0; j < 450; j += 50) { ctx.moveTo(0, j); ctx.lineTo(800, j); }
+        ctx.moveTo(0, floorY);
+        ctx.lineTo(800, floorY);
         ctx.stroke();
 
-        // Draw Floor
-        ctx.strokeStyle = 'var(--primary)';
+        ctx.strokeStyle = '#0066ff';
         ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5;
         ctx.beginPath();
-        ctx.moveTo(0, GROUND_Y + 10);
-        ctx.lineTo(800, GROUND_Y + 10);
+        ctx.moveTo(0, floorY + 4);
+        ctx.lineTo(800, floorY + 4);
         ctx.stroke();
-
-        // Add floor glow
-        ctx.strokeStyle = 'var(--primary)';
-        ctx.lineWidth = 10;
-        ctx.beginPath();
-        ctx.moveTo(0, GROUND_Y + 10);
-        ctx.lineTo(800, GROUND_Y + 10);
-        ctx.stroke();
+        ctx.globalAlpha = 1;
 
         const { player, enemy } = gameState.current;
         drawFighter(ctx, player);
@@ -294,7 +322,7 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         particles.current.forEach(p => {
             ctx.fillStyle = p.color;
             ctx.globalAlpha = p.life;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = p.life * 15;
             ctx.shadowColor = p.color;
             ctx.beginPath();
             ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
@@ -312,54 +340,57 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         ctx.translate(f.x, f.y);
         if (f.direction === 'left') ctx.scale(-1, 1);
 
-        if (f.state !== 'dead') {
-            ctx.save();
-            ctx.scale(f.direction === 'left' ? -1 : 1, 1);
-            ctx.fillStyle = 'rgba(0,0,0,0.8)';
-            ctx.fillRect(-30, -110, 60, 4);
-            ctx.fillStyle = f.color;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = f.color;
-            ctx.fillRect(-30, -110, 60 * (f.hp / f.maxHp), 4);
-            ctx.restore();
-        }
-
-        ctx.strokeStyle = f.color;
-        ctx.lineWidth = 8;
-        ctx.lineCap = 'round';
-        ctx.shadowBlur = 20;
+        // Character Glow
+        ctx.shadowBlur = 15;
         ctx.shadowColor = f.color;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
 
         let headY = -70;
         let bodyY = -35;
 
+        // Draw Limbs
         if (f.state === 'run') {
             const t = Date.now() / 80;
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(Math.sin(t) * 25, 0); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(Math.sin(t + Math.PI) * 25, 0); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(20, -40 + Math.sin(t) * 15); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(-20, -40 - Math.sin(t) * 15); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(25, -40 + Math.sin(t) * 15); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(-25, -40 - Math.sin(t) * 15); ctx.stroke();
         } else if (f.state === 'attack') {
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(-15, 0); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(15, 0); ctx.stroke();
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 10;
-            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(55, -45); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(60, -45); ctx.stroke();
         } else if (f.state === 'hit') {
-            ctx.translate(Math.random() * 6 - 3, Math.random() * 6 - 3);
+            ctx.translate(Math.random() * 10 - 5, Math.random() * 10 - 5);
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(-10, -5); ctx.stroke();
+            ctx.strokeStyle = '#fff';
         } else if (f.state === 'dead') {
             ctx.rotate(Math.PI / 2);
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(10, 5); ctx.stroke();
         } else {
+            // Idle / Jump
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(-15, 0); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0, bodyY); ctx.lineTo(15, 0); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(15, -30); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(-15, -30); ctx.stroke();
+            const armT = Math.sin(Date.now() / 200) * 5;
+            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(15, -30 + armT); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, -55); ctx.lineTo(-15, -30 + armT); ctx.stroke();
         }
 
+        // Body & Head
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 8;
         ctx.beginPath(); ctx.moveTo(0, headY + 10); ctx.lineTo(0, bodyY); ctx.stroke();
-        ctx.beginPath(); ctx.arc(0, headY, 16, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, headY, 18, 0, Math.PI * 2); ctx.stroke();
+
+        // Glowing Core
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.arc(0, -50, 4, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
     };
@@ -372,20 +403,76 @@ export function StickmanGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
                 {/* White Flash Effect Overlay */}
                 <div className={`absolute inset-0 bg-white pointer-events-none transition-opacity duration-100 ${flash ? 'opacity-30' : 'opacity-0'}`} />
 
-                <div className="absolute top-4 left-8 right-8 flex justify-between pointer-events-none">
-                    <div className="flex flex-col gap-1">
-                        <div className="text-[var(--primary)] font-black text-xs italic tracking-tighter" style={{ fontFamily: "'Press Start 2P', cursive" }}>CYBER_P1</div>
-                        <div className="w-64 h-2 bg-black/50 border border-[var(--primary)]/30 overflow-hidden">
-                            <motion.div animate={{ width: `${gameState.current.player.hp}%` }} className="h-full bg-[var(--primary)] shadow-[0_0_10px_var(--primary)]" />
+                <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />
+
+                <div className="absolute top-6 left-12 right-12 flex justify-between items-start pointer-events-none z-10">
+                    {/* Player HP */}
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full border-2 border-[#00ccff] bg-black/50 flex items-center justify-center text-[#00ccff] font-bold text-lg shadow-[0_0_15px_#00ccff]">P1</div>
+                            <div className="text-[#00ccff] font-black text-sm italic tracking-widest uppercase">CYBER_UNIT</div>
+                        </div>
+                        <div className="relative w-80 h-6 bg-black/60 border-2 border-[#00ccff]/40 rounded-sm overflow-hidden skew-x-[-15deg] shadow-[0_0_20px_rgba(0,204,255,0.2)]">
+                            <motion.div
+                                animate={{ width: `${(gameState.current.player.hp / gameState.current.player.maxHp) * 100}%` }}
+                                className="h-full bg-gradient-to-r from-[#0066ff] to-[#00ccff] shadow-[0_0_15px_#00ccff]"
+                            />
+                            {/* HP Text */}
+                            <div className="absolute inset-0 flex items-center justify-end pr-3 text-white font-mono text-[10px] uppercase font-bold tracking-tighter">
+                                {Math.ceil(gameState.current.player.hp)} HP
+                            </div>
                         </div>
                     </div>
-                    <div className="flex flex-col gap-1 items-end">
-                        <div className="text-[var(--accent)] font-black text-xs italic tracking-tighter" style={{ fontFamily: "'Press Start 2P', cursive" }}>CPU_NODE</div>
-                        <div className="w-64 h-2 bg-black/50 border border-[var(--accent)]/30 overflow-hidden">
-                            <motion.div animate={{ width: `${gameState.current.enemy.hp}%` }} className="h-full bg-[var(--accent)] shadow-[0_0_10px_var(--accent)] ml-auto" />
+
+                    {/* VS Center */}
+                    <div className="mt-2 flex flex-col items-center">
+                        <div className="text-white/40 font-black text-xl italic skew-x-[-15deg]">VS</div>
+                    </div>
+
+                    {/* Enemy HP */}
+                    <div className="flex flex-col gap-2 items-end">
+                        <div className="flex items-center gap-3 flex-row-reverse">
+                            <div className="w-10 h-10 rounded-full border-2 border-[#ff3300] bg-black/50 flex items-center justify-center text-[#ff3300] font-bold text-lg shadow-[0_0_15px_#ff3300]">CPU</div>
+                            <div className="text-[#ff3300] font-black text-sm italic tracking-widest uppercase">OVERLORD_V1</div>
+                        </div>
+                        <div className="relative w-80 h-6 bg-black/60 border-2 border-[#ff3300]/40 rounded-sm overflow-hidden skew-x-[15deg] shadow-[0_0_20px_rgba(255,51,0,0.2)]">
+                            <motion.div
+                                animate={{ width: `${(gameState.current.enemy.hp / gameState.current.enemy.maxHp) * 100}%` }}
+                                className="h-full bg-gradient-to-l from-[#990000] to-[#ff3300] shadow-[0_0_15px_#ff3300] ml-auto"
+                            />
+                            {/* HP Text */}
+                            <div className="absolute inset-0 flex items-center justify-start pl-3 text-white font-mono text-[10px] uppercase font-bold tracking-tighter">
+                                {Math.ceil(gameState.current.enemy.hp)} HP
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {/* Ready / Fight Overlay */}
+                <AnimatePresence>
+                    {!isReady && !gameOver && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 2 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.5, y: -100 }}
+                            className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+                        >
+                            <div className="text-center">
+                                <motion.h1
+                                    className="text-8xl font-black italic text-white drop-shadow-[0_0_30px_#00ccff] tracking-tighter skew-x-[-20deg]"
+                                    style={{ WebkitTextStroke: '4px #000' }}
+                                >
+                                    READY?
+                                </motion.h1>
+                                <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: 600 }}
+                                    className="h-2 bg-gradient-to-r from-transparent via-white to-transparent mx-auto mt-4"
+                                />
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {gameOver && (
                     <motion.div
