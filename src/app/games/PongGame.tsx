@@ -1,11 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { GameWrapper } from '@/app/components/GameWrapper';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme?: 'cyan' | 'red' | 'green' }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ player: 0, ai: 0 });
   const [isPaused, setIsPaused] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const requestRef = useRef<number>(0);
+
+  // Refs for flag synchronization
+  const isPausedRef = useRef(false);
+  const isReadyRef = useRef(false);
+
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => { isReadyRef.current = isReady; }, [isReady]);
 
   const gameState = useRef({
     playerY: 160,
@@ -52,12 +61,15 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
     window.addEventListener('keyup', handleKeyUp);
 
     const gameLoop = () => {
-      if (!isPaused) {
+      if (!isPausedRef.current && isReadyRef.current) {
         update(WIDTH, HEIGHT, PADDLE_WIDTH, PADDLE_HEIGHT, BALL_SIZE, PADDLE_SPEED);
       }
       draw(ctx, WIDTH, HEIGHT, PADDLE_WIDTH, PADDLE_HEIGHT, BALL_SIZE);
       requestRef.current = requestAnimationFrame(gameLoop);
     };
+
+    // Start intro sequence
+    const introTimer = setTimeout(() => setIsReady(true), 1500);
 
     const spawnParticles = (x: number, y: number, color: string) => {
       const state = gameState.current;
@@ -89,7 +101,7 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
       // Player Movement
       if (state.keys['KeyW'] || state.keys['ArrowUp']) state.playerY -= ps;
       if (state.keys['KeyS'] || state.keys['ArrowDown']) state.playerY += ps;
-      state.playerY = Math.max(0, Math.min(h - ph, state.playerY));
+      state.playerY = Math.max(10, Math.min(h - ph - 10, state.playerY));
 
       // Human-like AI Logic
       state.aiReactionTimer--;
@@ -101,7 +113,7 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
       const aiMoveSpeed = ps * 0.7;
       if (state.aiY < state.aiTargetY - 5) state.aiY += aiMoveSpeed;
       else if (state.aiY > state.aiTargetY + 5) state.aiY -= aiMoveSpeed;
-      state.aiY = Math.max(0, Math.min(h - ph, state.aiY));
+      state.aiY = Math.max(10, Math.min(h - ph - 10, state.aiY));
 
       // Ball Physics
       state.ballX += state.ballVX;
@@ -112,16 +124,16 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
       if (state.trail.length > 15) state.trail.pop();
 
       // Wall Collisions
-      if (state.ballY <= 0) {
-        state.ballY = 0;
+      if (state.ballY <= 10) {
+        state.ballY = 10;
         state.ballVY = Math.abs(state.ballVY);
         state.screenShake = 3;
-        spawnParticles(state.ballX, state.ballY, 'var(--primary)');
-      } else if (state.ballY >= h - bs) {
-        state.ballY = h - bs;
+        spawnParticles(state.ballX, state.ballY, '#00ccff');
+      } else if (state.ballY >= h - bs - 10) {
+        state.ballY = h - bs - 10;
         state.ballVY = -Math.abs(state.ballVY);
         state.screenShake = 3;
-        spawnParticles(state.ballX, state.ballY, 'var(--primary)');
+        spawnParticles(state.ballX, state.ballY, '#ff3300');
       }
 
       // Paddle Collisions
@@ -144,7 +156,7 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
 
           // Collision effects
           state.screenShake = 6;
-          spawnParticles(state.ballX, state.ballY + bs / 2, side === 'left' ? 'var(--primary)' : 'var(--accent)');
+          spawnParticles(state.ballX, state.ballY + bs / 2, side === 'left' ? '#00ccff' : '#ff3300');
         }
       };
 
@@ -180,32 +192,57 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
         ctx.translate((Math.random() - 0.5) * state.screenShake, (Math.random() - 0.5) * state.screenShake);
       }
 
-      // Background
-      ctx.fillStyle = '#050510';
+      // Background - Slightly lighter
+      ctx.fillStyle = '#0a0a20';
       ctx.fillRect(0, 0, w, h);
 
-      // CRT Grid Lines
-      ctx.strokeStyle = 'rgba(0, 255, 0, 0.05)';
+      // Brighter Grid Lines
+      ctx.strokeStyle = 'rgba(0, 150, 255, 0.1)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let x = 0; x <= w; x += 30) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
-      for (let y = 0; y <= h; y += 30) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+      for (let x = 0; x <= w; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+      for (let y = 0; y <= h; y += 40) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
       ctx.stroke();
 
-      // Center Line
-      ctx.setLineDash([10, 10]);
-      ctx.strokeStyle = 'rgba(0, 255, 0, 0.2)';
+      // Glowing Walls
+      const drawWall = (y: number, color1: string, color2: string) => {
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color1;
+        ctx.strokeStyle = color1;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+
+        ctx.strokeStyle = color2;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, y > h / 2 ? y + 4 : y - 4);
+        ctx.lineTo(w, y > h / 2 ? y + 4 : y - 4);
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      drawWall(10, '#00ccff', '#ffffff');
+      drawWall(h - 10, '#ff3300', '#ffffff');
+
+      // Center Line - Brighter
+      ctx.setLineDash([15, 15]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(w / 2, 0);
-      ctx.lineTo(w / 2, h);
+      ctx.moveTo(w / 2, 20);
+      ctx.lineTo(w / 2, h - 20);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Ball Trail
+      // Ball Trail - More vibrant
       state.trail.forEach((pos, i) => {
-        const alpha = (1 - i / state.trail.length) * 0.4;
-        ctx.fillStyle = `rgba(0, 255, 255, ${alpha})`;
+        const alpha = (1 - i / state.trail.length) * 0.5;
+        ctx.fillStyle = i % 2 === 0 ? `rgba(0, 204, 255, ${alpha})` : `rgba(255, 51, 0, ${alpha})`;
         ctx.beginPath();
         ctx.arc(pos.x + bs / 2, pos.y + bs / 2, (bs / 2) * (1 - i / state.trail.length), 0, Math.PI * 2);
         ctx.fill();
@@ -215,26 +252,28 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
       state.particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.life;
-        ctx.fillRect(p.x, p.y, 2, 2);
+        ctx.shadowBlur = p.life * 10;
+        ctx.shadowColor = p.color;
+        ctx.fillRect(p.x, p.y, 3, 3);
       });
       ctx.globalAlpha = 1.0;
 
       // Neon Glow
-      ctx.shadowBlur = 15;
+      ctx.shadowBlur = 20;
 
       // Players
-      ctx.fillStyle = 'var(--primary)';
-      ctx.shadowColor = 'var(--primary)';
+      ctx.fillStyle = '#00ccff';
+      ctx.shadowColor = '#00ccff';
       ctx.fillRect(5, state.playerY, pw - 5, ph);
 
-      ctx.fillStyle = 'var(--accent)';
-      ctx.shadowColor = 'var(--accent)';
+      ctx.fillStyle = '#ff3300';
+      ctx.shadowColor = '#ff3300';
       ctx.fillRect(w - pw, state.aiY, pw - 5, ph);
 
       // Ball
       ctx.fillStyle = 'white';
-      ctx.shadowColor = 'var(--primary)';
-      ctx.shadowBlur = 20;
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 25;
       ctx.beginPath();
       ctx.arc(state.ballX + bs / 2, state.ballY + bs / 2, bs / 2, 0, Math.PI * 2);
       ctx.fill();
@@ -243,12 +282,12 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
       ctx.restore();
 
       if (isPaused) {
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
         ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = '#00ff00';
-        ctx.font = '20px "Press Start 2P"';
+        ctx.fillStyle = '#fff';
+        ctx.font = '24px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillText('PAUSED', w / 2, h / 2);
+        ctx.fillText('TIME FROZEN', w / 2, h / 2);
       }
     };
 
@@ -258,27 +297,53 @@ export function PongGame({ onBack, theme = 'cyan' }: { onBack: () => void; theme
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      clearTimeout(introTimer);
     };
-  }, [isPaused]);
+  }, [isPausedRef.current, isReadyRef.current]);
 
   return (
     <GameWrapper title="PONG_ULTRA" onBack={onBack}>
-      <div className="flex flex-col items-center gap-8">
+      <div className="flex flex-col items-center gap-8 relative">
         <div className="flex gap-16 text-3xl font-black italic tracking-tighter" style={{ fontFamily: "'Press Start 2P', cursive" }}>
-          <div className="text-[var(--primary)] arcade-glow-text">P1: {score.player}</div>
-          <div className="text-[var(--accent)]" style={{ textShadow: '0 0 10px var(--accent)' }}>AI: {score.ai}</div>
+          <div className="text-[#00ccff] arcade-glow-text">P1: {score.player}</div>
+          <div className="text-[#ff3300]" style={{ textShadow: '0 0 10px #ff3300' }}>AI: {score.ai}</div>
         </div>
 
-        <div className="relative p-1 bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl arcade-glow">
+        <div className="relative p-1 bg-gradient-to-br from-[#00ccff] to-[#ff3300] rounded-2xl arcade-glow overflow-hidden">
           <canvas
             ref={canvasRef}
             width={600}
             height={400}
             className="rounded-xl bg-black block"
           />
+
+          {/* Ready / Play Overlay */}
+          <AnimatePresence>
+            {!isReady && (
+              <motion.div
+                initial={{ opacity: 0, scale: 2 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.5, y: -50 }}
+                className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+              >
+                <div className="text-center">
+                  <motion.h1
+                    className="text-6xl font-black italic text-white drop-shadow-[0_0_20px_#00ccff] tracking-tighter skew-x-[-15deg]"
+                  >
+                    READY?
+                  </motion.h1>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: 400 }}
+                    className="h-1 bg-gradient-to-r from-transparent via-white to-transparent mx-auto mt-2"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        <div className="flex gap-8 text-[10px] text-[var(--primary)] opacity-60 font-mono tracking-widest uppercase">
+        <div className="flex gap-10 text-[10px] text-white/40 font-mono tracking-widest uppercase">
           <span>[W/S] P1_DRIVE</span>
           <span>[SPACE] FREEZE_TIME</span>
         </div>
