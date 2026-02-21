@@ -11,6 +11,14 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
   const [gameWon, setGameWon] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  // Refs for flag synchronization (avoid stale closures)
+  const isPausedRef = useRef(false);
+  const isReadyRef = useRef(false);
+
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+  useEffect(() => { isReadyRef.current = isReady; }, [isReady]);
 
   // Visual Effects
   const [screenShake, setScreenShake] = useState(0);
@@ -45,11 +53,11 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
     const BRICK_OFFSET_TOP = 40;
     const BRICK_OFFSET_LEFT = 12;
 
-    // Ball state
+    // Ball state - Slower as requested
     let ballX = WIDTH / 2;
     let ballY = HEIGHT - 40;
-    let ballDX = 6;
-    let ballDY = -6;
+    let ballDX = 4;
+    let ballDY = -4;
 
     // Paddle state in local scope for loop
     let currentPaddleX = WIDTH / 2 - PADDLE_WIDTH / 2;
@@ -57,7 +65,7 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
     let targetPaddleX = currentPaddleX;
 
     const bricks: { x: number; y: number; alive: boolean; color: string }[] = [];
-    const colors = ['#ff0000', '#ffaa00', '#ffff00', '#00ff00', '#00f3ff'];
+    const colors = ['#ff3300', '#ff9900', '#ffff00', '#33ff00', '#00ccff'];
 
     for (let row = 0; row < BRICK_ROWS; row++) {
       for (let col = 0; col < BRICK_COLS; col++) {
@@ -90,12 +98,9 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
     let animationFrameId: number;
 
     const gameLoop = () => {
-      if (gameState.current.gameOver || gameState.current.gameWon || isPaused) {
-        // Still draw static frame? Or just return
-        if (!isPaused) return; // If paused, we might want to draw a static frame, but for now just stop loop logic
-      }
-
-      if (!isPaused && !gameState.current.gameOver && !gameState.current.gameWon) {
+      if (gameState.current.gameOver || gameState.current.gameWon) {
+        // Wait
+      } else if (!isPausedRef.current && isReadyRef.current) {
         // Update paddle
         // Smooth lerp
         currentPaddleX += (targetPaddleX - currentPaddleX) * 0.2;
@@ -110,30 +115,27 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         ballY += ballDY;
 
         // Wall collision
-        if (ballX + ballDX > WIDTH - BALL_RADIUS || ballX + ballDX < BALL_RADIUS) {
+        if (ballX + ballDX > WIDTH - BALL_RADIUS - 5 || ballX + ballDX < BALL_RADIUS + 5) {
           ballDX = -ballDX;
         }
-        if (ballY + ballDY < BALL_RADIUS) {
+        if (ballY + ballDY < BALL_RADIUS + 5) {
           ballDY = -ballDY;
         }
 
         // Paddle collision
         if (
-          ballY + BALL_RADIUS > HEIGHT - PADDLE_HEIGHT - 5 && // Close to bottom
-          ballY - BALL_RADIUS < HEIGHT && // Not already passed
+          ballY + BALL_RADIUS > HEIGHT - PADDLE_HEIGHT - 10 &&
+          ballY - BALL_RADIUS < HEIGHT &&
           ballX > currentPaddleX &&
           ballX < currentPaddleX + PADDLE_WIDTH
         ) {
-          // Hit!
-          ballDY = -Math.abs(ballDY); // Ensure it goes up
-
-          // English effect
+          ballDY = -Math.abs(ballDY);
           const hitPoint = ballX - (currentPaddleX + PADDLE_WIDTH / 2);
           ballDX = hitPoint * 0.15;
+          setScreenShake(3);
         }
 
         // Brick collision
-        let hitBrick = false;
         bricks.forEach(brick => {
           if (!brick.alive) return;
           if (
@@ -144,13 +146,13 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
           ) {
             ballDY = -ballDY;
             brick.alive = false;
-            hitBrick = true;
             gameState.current.score += 10;
             setScore(gameState.current.score);
+            setScreenShake(4);
           }
         });
 
-        if (hitBrick && bricks.every(b => !b.alive)) {
+        if (bricks.every(b => !b.alive)) {
           gameState.current.gameWon = true;
           setGameWon(true);
           setFlash(true);
@@ -161,84 +163,97 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
         if (ballY + ballDY > HEIGHT) {
           gameState.current.lives--;
           setLives(gameState.current.lives);
-
-          // Shake effect
           setScreenShake(10);
 
           if (gameState.current.lives <= 0) {
             gameState.current.gameOver = true;
             setGameOver(true);
-            // Big Shake
             setScreenShake(20);
             setFlash(true);
             setTimeout(() => setFlash(false), 200);
           } else {
-            // Reset ball
             ballX = WIDTH / 2;
-            ballY = HEIGHT - 40;
-            ballDX = 6;
-            ballDY = -6;
+            ballY = HEIGHT - 100;
+            ballDX = 4;
+            ballDY = -4;
           }
         }
       }
 
-      // Draw
-
-      // Screen Shake
-      ctx.save();
-      // We need to access the react state for screenShake, but inside the loop closure
-      // Ideally we'd use a ref for shake too, but let's try to infer from loop logic or pass it.
-      // Since `screenShake` state updates trigger re-renders of the component but this loop is closed over initial values...
-      // WAIT. `gameLoop` is defined inside useEffect, so it closes over the initial state.
-      // We need `screenShake` in a Ref to be readable here if we want to update it inside/read it inside directly.
-      // BUT, we are setting state `setScreenShake` which triggers re-render.
-      // The canvas is ref-based.
-
-      // Actually, standard practice for canvas + React loop:
-      // Use refs for everything mutable in the loop.
-
-      ctx.fillStyle = '#050510';
+      // Draw Sequence
+      ctx.fillStyle = '#0a0a20'; // Lighter background
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-      // We can't easily read the "current" screenShake state here without a ref.
-      // Let's implement shake logic in the loop based on events, or just trust the impact frame.
-      // Or move shake completely to CSS on the container? 
-      // CSS is easier for the container shake!
+      // Brighter Grid
+      ctx.strokeStyle = 'rgba(0, 150, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 0; x <= WIDTH; x += 30) { ctx.moveTo(x, 0); ctx.lineTo(x, HEIGHT); }
+      for (let y = 0; y <= HEIGHT; y += 30) { ctx.moveTo(0, y); ctx.lineTo(WIDTH, y); }
+      ctx.stroke();
+
+      // Glowing Borders
+      const drawBorder = (x1: number, y1: number, x2: number, y2: number, color: string) => {
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      const borderColor = '#00ccff';
+      drawBorder(2, 0, 2, HEIGHT, borderColor); // Left
+      drawBorder(WIDTH - 2, 0, WIDTH - 2, HEIGHT, borderColor); // Right
+      drawBorder(0, 2, WIDTH, 2, borderColor); // Top
 
       // Draw Bricks
       bricks.forEach(brick => {
         if (brick.alive) {
+          ctx.save();
           ctx.fillStyle = brick.color;
-          ctx.shadowBlur = 0;
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = brick.color;
           ctx.beginPath();
-          ctx.rect(brick.x, brick.y, BRICK_WIDTH, BRICK_HEIGHT);
+          ctx.roundRect(brick.x, brick.y, BRICK_WIDTH, BRICK_HEIGHT, 4);
           ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-          ctx.stroke();
 
-          // Inner glow
-          ctx.fillStyle = 'rgba(255,255,255,0.1)';
-          ctx.fillRect(brick.x, brick.y, BRICK_WIDTH, BRICK_HEIGHT / 2);
+          // Glossy highlight
+          ctx.fillStyle = 'rgba(255,255,255,0.2)';
+          ctx.fillRect(brick.x, brick.y, BRICK_WIDTH, 2);
+          ctx.restore();
         }
       });
 
-      // Draw Paddle
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = 'var(--primary)';
-      ctx.fillStyle = 'var(--primary)';
-      ctx.fillRect(currentPaddleX, HEIGHT - PADDLE_HEIGHT - 5, PADDLE_WIDTH, PADDLE_HEIGHT);
+      // Draw Paddle - High Visibility
+      ctx.save();
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = '#00ccff';
+      ctx.fillStyle = '#00ccff';
+      ctx.beginPath();
+      ctx.roundRect(currentPaddleX, HEIGHT - PADDLE_HEIGHT - 15, PADDLE_WIDTH, PADDLE_HEIGHT, 5);
+      ctx.fill();
+      ctx.restore();
 
-      // Draw Ball
-      ctx.shadowColor = 'var(--primary)';
-      ctx.fillStyle = 'var(--primary)';
+      // Draw Ball - High Visibility
+      ctx.save();
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(ballX, ballY, BALL_RADIUS, 0, Math.PI * 2);
       ctx.fill();
-
       ctx.restore();
 
       animationFrameId = requestAnimationFrame(gameLoop);
     };
+
+    // Intro Sequence
+    const introTimer = setTimeout(() => setIsReady(true), 1500);
 
     gameLoop();
 
@@ -246,8 +261,10 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
       canvas.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('keydown', handleKeyDown);
       cancelAnimationFrame(animationFrameId);
+      clearTimeout(introTimer);
     };
-  }, [isPaused]); // Restart loop if paused state changes? Or just check ref inside. Better to just have empty dep and use refs.
+  }, [isPausedRef.current, isReadyRef.current]);
+  // Restart loop if paused state changes? Or just check ref inside. Better to just have empty dep and use refs.
   // Actually, to make start/stop easy, let's keep it simple.
 
   // Effect to handle screen shake decay
@@ -277,21 +294,46 @@ export function ArkanoidGame({ onBack, theme = 'cyan' }: { onBack: () => void; t
           className="w-full h-full block"
         />
 
+        {/* Ready / Play Overlay */}
+        <AnimatePresence>
+          {!isReady && !gameOver && !gameWon && (
+            <motion.div
+              initial={{ opacity: 0, scale: 2 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5, y: -50 }}
+              className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+            >
+              <div className="text-center">
+                <motion.h1
+                  className="text-6xl font-black italic text-white drop-shadow-[0_0_20px_#00ccff] tracking-tighter skew-x-[-15deg]"
+                >
+                  READY?
+                </motion.h1>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: 400 }}
+                  className="h-1 bg-gradient-to-r from-transparent via-white to-transparent mx-auto mt-2"
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Flash Overlay */}
         <div className={`absolute inset-0 bg-white pointer-events-none transition-opacity duration-100 ${flash ? 'opacity-40' : 'opacity-0'}`} />
 
         {/* HUD */}
-        <div className="absolute top-4 left-4 flex gap-8 pointer-events-none">
+        <div className="absolute top-4 left-6 flex gap-12 pointer-events-none">
           <div className="flex flex-col">
-            <span className="text-[var(--primary)]/70 text-[10px] tracking-widest">SCORE</span>
-            <span className="text-[var(--primary)] text-xl font-black" style={{ fontFamily: "'Press Start 2P', cursive" }}>{score}</span>
+            <span className="text-[#00ccff]/50 text-[8px] tracking-[0.3em] font-bold">SCORE</span>
+            <span className="text-white text-2xl font-black italic tracking-tighter" style={{ fontFamily: "'Press Start 2P', cursive", textShadow: '0 0 10px #00ccff' }}>{score}</span>
           </div>
 
           <div className="flex flex-col">
-            <span className="text-[var(--accent)]/70 text-[10px] tracking-widest">LIVES</span>
-            <div className="flex gap-1 text-[var(--accent)]">
+            <span className="text-[#ff3300]/50 text-[8px] tracking-[0.3em] font-bold">LIVES</span>
+            <div className="flex gap-2 mt-2">
               {Array.from({ length: Math.max(0, lives) }).map((_, i) => (
-                <div key={i} className="w-3 h-3 bg-[var(--accent)] rounded-full shadow-[0_0_5px_currentColor]" />
+                <div key={i} className="w-4 h-4 bg-[#ff3300] rounded-sm transform rotate-45 shadow-[0_0_10px_#ff3300]" />
               ))}
             </div>
           </div>
