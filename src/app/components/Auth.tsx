@@ -46,8 +46,9 @@ export function Auth({ onLogin }: AuthProps) {
             }
 
             onLogin(json.data, json.username);
-        } catch (err) {
-            setError('Не удалось подключиться к серверу');
+        } catch (err: any) {
+            console.error('Auth error:', err);
+            setError(`Ошибка подключения: ${err.message || 'Сервер недоступен'}`);
         } finally {
             setLoading(false);
         }

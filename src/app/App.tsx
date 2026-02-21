@@ -38,6 +38,7 @@ export default function App() {
   const [selectedGame, setSelectedGame] = useState<GameId | null>(null);
   const [currentUser, setCurrentUser] = useLocalStorage<string | null>('currentUser', null);
   const [theme, setTheme] = useLocalStorage<'cyan' | 'green' | 'red'>('app_theme', 'cyan');
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Default initial data for new users
   const defaultUserData = {
@@ -67,17 +68,26 @@ export default function App() {
     }
   };
 
-  // Sync userData when currentUser changes
+  // Sync userData from backend when app loads or currentUser changes
   useEffect(() => {
-    if (currentUser) {
-      const usersJson = localStorage.getItem('arcade_users');
-      if (usersJson) {
-        const users = JSON.parse(usersJson);
-        if (users[currentUser]) {
-          setUserData(users[currentUser].data);
+    const fetchUserData = async () => {
+      if (currentUser) {
+        try {
+          const res = await fetch(`${API_URL}/api/users/${currentUser}`);
+          if (res.ok) {
+            const json = await res.json();
+            setUserData(json.data);
+          } else if (res.status === 404) {
+            // User not found in DB but exists in localStorage, log them out
+            setCurrentUser(null);
+          }
+        } catch (err) {
+          console.error('Failed to fetch user data:', err);
         }
       }
-    }
+      setIsInitialLoading(false);
+    };
+    fetchUserData();
   }, [currentUser]);
 
   // Wrapper for updating user data and persisting it
@@ -207,7 +217,12 @@ export default function App() {
       <CursorAura />
 
       <div className="relative z-10 size-full flex items-center justify-center">
-        {!currentUser ? (
+        {isInitialLoading ? (
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-[#00ff00] border-t-transparent rounded-full animate-spin" />
+            <div className="text-[#00ff00] font-mono animate-pulse uppercase">Инициализация...</div>
+          </div>
+        ) : !currentUser ? (
           <Auth onLogin={handleLogin} />
         ) : (
           <AnimatePresence mode="wait">

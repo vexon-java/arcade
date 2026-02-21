@@ -11,9 +11,18 @@ const PORT = process.env.PORT || 3001;
 // ─── Middleware ─────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: (origin, callback) => {
+        // Allow all origins in dev, or specific ones if needed
+        callback(null, true);
+    },
     credentials: true,
 }));
+
+// Simple logger to see incoming requests
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
 
 // ─── Auth: Register ─────────────────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
@@ -102,6 +111,21 @@ app.get('/api/leaderboard', async (req, res) => {
         }));
 
         res.json(players);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// ─── Get User Data ───────────────────────────────────────────────────────────
+app.get('/api/users/:username', async (req, res) => {
+    const { username } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Пользователь не найден' });
+        }
+        res.json({ username, data: toUserData(result.rows[0]) });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Ошибка сервера' });
